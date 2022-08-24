@@ -24,7 +24,7 @@ print(f'The model has {count_parameters(model):,} trainable parameters')
 
 def test_model(num_examples):
     iterator = test_iter
-    model.load_state_dict(torch.load("./saved/transformer-base.pt"))
+    model.load_state_dict(torch.load("./saved/transformer-100.pt"))
 
     with torch.no_grad():
         batch_bleu = []

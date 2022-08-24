@@ -31,6 +31,7 @@ class ScaleDotProductAttention(nn.Module):
 
         # 3. pass them softmax to make [0, 1] range
         score = self.softmax(score)
+        # print(score)
 
         # 4. multiply with Value
         v = score @ v

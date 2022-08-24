@@ -4,7 +4,7 @@ import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # model parameter setting
-batch_size = 64
+batch_size = 32
 max_len = 256
 d_model = 512
 n_layers = 6

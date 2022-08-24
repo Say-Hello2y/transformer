@@ -10,8 +10,23 @@ pip install -r requirements.txt
 ### Step 2: train the model
 ```
 python train.py
+# use wandb (opt)
+python train.py --track
+'''
+edit cond.py for better training
+important parameters
+epoch: training epoch
+batch: batch size
+'''
+
 ```
 ### Step 3 : test the model
 ```
 python test.py
 ```
+
+## Experiment
+
+![](/saved/train_loss.png 'train loss during 100 epoch ')
+
+![](/saved/valid_loss.png 'valid loss after each epoch during 100 epoch')

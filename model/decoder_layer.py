@@ -1,34 +1,52 @@
-import torch
 from torch import nn
 
-from model.decoder_sublayer import DecoderLayer
-from model.position_encoder import TransformerEmbedding
+from model.layer_norm import LayerNorm
+from model.multi_head_attention import MultiHeadAttention
+from model.point_wise_mlp import PositionwiseFeedForward
 
+class DecoderLayer(nn.Module):
 
+    def __init__(self, d_model, ffn_hidden, n_head, drop_prob):
+        super(DecoderLayer, self).__init__()
+        self.self_attention = MultiHeadAttention(d_model=d_model, n_head=n_head)
+        self.norm1 = LayerNorm(d_model=d_model)
+        self.dropout1 = nn.Dropout(p=drop_prob)
 
-class Decoder(nn.Module):
-    def __init__(self, dec_voc_size, max_len, d_model, ffn_hidden, n_head, n_layers, drop_prob, device):
-        super().__init__()
-        self.emb = TransformerEmbedding(d_model=d_model,
-                                        drop_prob=drop_prob,
-                                        max_len=max_len,
-                                        vocab_size=dec_voc_size,
-                                        device=device)
+        self.enc_dec_attention = MultiHeadAttention(d_model=d_model, n_head=n_head)
+        self.norm2 = LayerNorm(d_model=d_model)
+        self.dropout2 = nn.Dropout(p=drop_prob)
 
-        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model,
-                                                  ffn_hidden=ffn_hidden,
-                                                  n_head=n_head,
-                                                  drop_prob=drop_prob)
-                                     for _ in range(n_layers)])
+        self.ffn = PositionwiseFeedForward(d_model=d_model, hidden=ffn_hidden, drop_prob=drop_prob)
+        self.norm3 = LayerNorm(d_model=d_model)
+        self.dropout3 = nn.Dropout(p=drop_prob)
 
-        self.linear = nn.Linear(d_model, dec_voc_size)
+    def forward(self, dec, enc, t_mask, s_mask):
+        # 1. compute self attention
+        _x = dec
+        x = self.self_attention(q=dec, k=dec, v=dec, mask=t_mask)
+        
+        # 2. add and norm
+        x = self.dropout1(x)
+        x = self.norm1(x + _x)
+        
 
-    def forward(self, trg, enc_src, trg_mask, src_mask):
-        trg = self.emb(trg)
+        if enc is not None:
+            # 3. compute encoder - decoder attention
+            _x = x
+            x = self.enc_dec_attention(q=x, k=enc, v=enc, mask=s_mask)
+            
+            # 4. add and norm
+            x = self.dropout2(x)
+            x = self.norm2(x + _x)
+            
 
-        for layer in self.layers:
-            trg = layer(trg, enc_src, trg_mask, src_mask)
-
-        # pass to LM head
-        output = self.linear(trg)
-        return output
+        # 5. positionwise feed forward network
+        _x = x
+        x = self.ffn(x)
+        
+        x = self.dropout3(x)
+        
+        # 6. add and norm
+        x = self.norm3(x + _x)
+        
+        return x

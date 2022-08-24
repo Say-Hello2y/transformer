@@ -2,14 +2,40 @@ import math
 import time
 import os
 import torch
+import argparse
+from distutils.util import strtobool
 
 from torch import nn, optim
 from torch.optim import Adam
+from torch.utils.tensorboard import SummaryWriter
 
 from preprocess import *
 from model.tansformer import Transformer
 from util.bleu import idx_to_word, get_bleu
 from util.epoch_timer import epoch_time
+
+
+def parse_args():
+    # fmt: off
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+                        help="if toggled, this experiment will be tracked with Weights and Biases")
+    parser.add_argument("--wandb-project-name", type=str, default="transformer",
+                        help="the wandb's project name")
+    parser.add_argument("--wandb-entity", type=str, default=None,
+                        help="the entity (team) of wandb's project")
+
+
+    args = parser.parse_args()
+
+    # fmt: on
+    return args
+
+
+
+
+
+
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -19,17 +45,17 @@ def initialize_weights(m):
     if hasattr(m, 'weight') and m.weight.dim() > 1:
         nn.init.kaiming_uniform(m.weight.data)
 
-def save_model(model):
-    time_now = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
-    path = os.path.abspath("saved/" + 'transformer'+ time_now + ".pth")
-    path_dir = os.path.abspath("saved/")
-    if not os.path.isdir(path_dir):
-        os.mkdir(path_dir)
-    torch.save(model.module, path)
-    print(
-        "****************************************************************************************************************************************************"
-    )
-    print("save model to {}".format(path))
+# def save_model(model):
+#     time_now = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
+#     path = os.path.abspath("saved/" + 'transformer'+ time_now + ".pth")
+#     path_dir = os.path.abspath("saved/")
+#     if not os.path.isdir(path_dir):
+#         os.mkdir(path_dir)
+#     torch.save(model.module, path)
+#     print(
+#         "****************************************************************************************************************************************************"
+#     )
+#     print("save model to {}".format(path))
 
 model = Transformer(src_pad_idx=src_pad_idx,
                     trg_pad_idx=trg_pad_idx,
@@ -59,7 +85,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
 criterion = nn.CrossEntropyLoss(ignore_index=src_pad_idx)
 
 
-def train(model, iterator, optimizer, criterion, clip):
+def train(model, iterator, optimizer, criterion, clip,step,track=False):
     model.train()
     epoch_loss = 0
     for i, batch in enumerate(iterator):  # 遍历train——iter
@@ -87,6 +113,10 @@ def train(model, iterator, optimizer, criterion, clip):
 
         epoch_loss += loss.item()
         print('step :', round((i / len(iterator)) * 100, 2), '% , loss :', loss.item())
+        if track:
+            writer.add_scalar(
+                        "losses/train_loss", loss.item(), i + step*len(iterator) + 1
+                    )
 
     return epoch_loss / len(iterator)
 
@@ -124,11 +154,11 @@ def evaluate(model, iterator, criterion):
     return epoch_loss / len(iterator), batch_bleu
 
 
-def run(total_epoch, best_loss):
+def run(total_epoch, best_loss, track=False):
     train_losses, test_losses, bleus = [], [], []
     for step in range(total_epoch):
         start_time = time.time()
-        train_loss = train(model, train_iter, optimizer, criterion, clip)
+        train_loss = train(model, train_iter, optimizer, criterion, clip,step,track)
         valid_loss, bleu = evaluate(model, valid_iter, criterion)
         end_time = time.time()
 
@@ -144,17 +174,28 @@ def run(total_epoch, best_loss):
             best_loss = valid_loss
             torch.save(model.state_dict(), 'saved/model-{0}.pt'.format(valid_loss))
 
-        f = open('result/train_loss.txt', 'w')
-        f.write(str(train_losses))
-        f.close()
+        # f = open('saved/train_loss.txt', 'w')
+        # f.write(str(train_losses))
+        # f.close()
 
-        f = open('result/bleu.txt', 'w')
-        f.write(str(bleus))
-        f.close()
+        # f = open('result/bleu.txt', 'w')
+        # f.write(str(bleus))
+        # f.close()
 
-        f = open('result/test_loss.txt', 'w')
-        f.write(str(test_losses))
-        f.close()
+        # f = open('result/test_loss.txt', 'w')
+        # f.write(str(test_losses))
+        # f.close()
+        
+        if track:                   
+            writer.add_scalar(
+                        "losses/valid_loss", train_loss, step
+                    )
+        
+            writer.add_scalar(
+                        "losses/bleu", bleu, step
+                    )
+
+        
 
         print(f'Epoch: {step + 1} | Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
@@ -163,5 +204,25 @@ def run(total_epoch, best_loss):
 
 
 if __name__ == '__main__':
-    run(total_epoch=epoch, best_loss=inf)
-    save_model(model)
+    args = parse_args()
+    if args.track:
+        import wandb  # visualize tool
+        print('use wandb')
+        time_now = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
+        run_name = f"{'transformer'}__{time_now}"
+
+        wandb.init(
+            project="transformer",
+            entity="long-x",
+            sync_tensorboard=True,
+            config=vars(args),
+            name=run_name,
+            save_code=True,
+        )
+        writer = SummaryWriter(f"runs/{run_name}")
+        writer.add_text(
+        "hyperparameters",
+        "|param|value|\n|-|-|\n%s"
+        % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
+                       )
+    run(total_epoch=epoch, best_loss=inf, track = args.track)
