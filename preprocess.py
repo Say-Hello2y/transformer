@@ -84,6 +84,8 @@ trg_sos_idx = loader.target.vocab.stoi['<sos>']
 
 enc_voc_size = len(loader.source.vocab)
 dec_voc_size = len(loader.target.vocab)
+# print(enc_voc_size)
+# print(dec_voc_size)
 '''
 print(train_iter)
 print(src_pad_idx)

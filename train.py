@@ -70,7 +70,8 @@ model = Transformer(src_pad_idx=src_pad_idx,
                     drop_prob=drop_prob,
                     device=device).to(device)
 
-print(f'The model has {count_parameters(model):,} trainable parameters')
+print(f'The model has {count_parameters(model):,} trainable parameters') 
+# The model has 55,205,037 trainable parameters
 model.apply(initialize_weights)
 optimizer = Adam(params=model.parameters(),
                  lr=init_lr,

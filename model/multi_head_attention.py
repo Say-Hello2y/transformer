@@ -45,10 +45,10 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
         self.n_head = n_head
         self.attention = ScaleDotProductAttention()
-        self.w_q = nn.Linear(d_model, d_model)
-        self.w_k = nn.Linear(d_model, d_model)
-        self.w_v = nn.Linear(d_model, d_model)
-        self.w_concat = nn.Linear(d_model, d_model)
+        self.w_q = nn.Linear(d_model, d_model,bias=False)
+        self.w_k = nn.Linear(d_model, d_model,bias=False)
+        self.w_v = nn.Linear(d_model, d_model,bias=False)
+        self.w_concat = nn.Linear(d_model, d_model,bias=False)
 
     def forward(self, q, k, v, mask=None):
         # 1. dot product with weight matrices
